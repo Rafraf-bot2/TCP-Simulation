@@ -18,6 +18,7 @@ public class Client {
     private static int ackNum = 0;
     private static int synNum = 0;
     private static int windowSize = 0;
+    private static String data = "";
 
     public static void main(String[] args) {
 
@@ -32,6 +33,7 @@ public class Client {
             clientSocket = new DatagramSocket(PORT);
             //clientSocket.setSoTimeout();
             System.out.println("Liaison socket-port réussie" + "\n");
+            clientSocket.setSoTimeout(10000);
         } catch (SocketException e) {
             System.out.println("Liaison socket-port échouée");
             e.printStackTrace();
@@ -90,13 +92,23 @@ public class Client {
                         ackPacket.setWindowSize(windowSize);
                         System.out.println("\t** Valeur de WindowRCV => " + windowSize);
 
+                        data = "42";
+                        ackPacket.setData(data);
+                        System.out.println("\t** Valeur de paquets voulus  => " + data);
+
                         sendPacket(ackPacket.toString());
                         state = State.ESTABLISHED;
 
                         System.out.println("Three way Handshake 3/3");
                     }
                 }
+                else if (state == State.ESTABLISHED) {
+                    System.out.println("eeee");
+                }
 
+            } catch (SocketTimeoutException e) {
+                System.out.println("Le serveur est injoignable : " + e);
+                return;
             } catch (IOException e) {
                 e.printStackTrace();
             }
