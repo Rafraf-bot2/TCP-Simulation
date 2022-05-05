@@ -17,6 +17,7 @@ public class Server {
     private static int ackNum = 0;
     private static int synNum = 0;
     private static int windowSize = 0;
+    private static int nbrPaquet;
 
 
     public static void main(String[] args) {
@@ -91,6 +92,9 @@ public class Server {
                     }
                     else if (state == State.ESTABLISHED) {
                         windowSize = tcpPacket.getWindowSize();
+                        nbrPaquet = Integer.parseInt(tcpPacket.getData());
+
+                        //traitement envoi paquets
                     }
                     else if (state == State.FIN_SEND) {
                         System.out.println("Fin de l'envoi");

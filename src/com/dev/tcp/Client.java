@@ -94,7 +94,7 @@ public class Client {
 
                         data = "42";
                         ackPacket.setData(data);
-                        System.out.println("\t** Valeur de paquets voulus  => " + data);
+                        System.out.println("\t** Valeur de paquets total voulus  => " + data);
 
                         sendPacket(ackPacket.toString());
                         state = State.ESTABLISHED;
