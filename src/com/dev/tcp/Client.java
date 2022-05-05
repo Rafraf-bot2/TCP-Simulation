@@ -88,7 +88,7 @@ public class Client {
                         System.out.println("\t** Valeur ACK => " + ackNum);
                         ackPacket.setAckNum(ackNum);
 
-                        windowSize = 16;
+                        windowSize = 4;
                         ackPacket.setWindowSize(windowSize);
                         System.out.println("\t** Valeur de WindowRCV => " + windowSize);
 
