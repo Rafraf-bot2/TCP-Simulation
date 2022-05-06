@@ -1,15 +1,20 @@
 package com.dev.tcp;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.util.Scanner;
 
 public class Server {
     private static final int PORT = 6500;
     private final String DATA_FILE = "data.in";
     private static final int MAX_BUFF_SIZE = 512;
+    private static final String INPUT_DATA_FILE_NAME = "data.in";
+    private static String INPUT_DATA = "";
 
     private static State state = State.NONE;
     private static DatagramSocket serverSocket;
@@ -17,10 +22,12 @@ public class Server {
     private static int ackNum = 0;
     private static int synNum = 0;
     private static int windowSize = 0;
-    private static int nbrPaquet;
+    private static int nbrPaquet=12;
+    private  static  int i=0;
+    private  static  int  index=0;
+    private static int segment_initial = 0;
 
-
-    public static void main(String[] args) {
+    public static void main(String[] args) throws FileNotFoundException {
         try {
             serverSocket = new DatagramSocket(PORT);
             System.out.println("Liaison socket-port réussie" + "\n");
@@ -32,7 +39,7 @@ public class Server {
         servExec();
     }
 
-    private static void servExec() {
+    private static void servExec() throws FileNotFoundException {
         while(true){
             byte[] buff = new byte[MAX_BUFF_SIZE];
             DatagramPacket packet = new DatagramPacket(buff, buff.length);
@@ -42,6 +49,11 @@ public class Server {
                 InetAddress clientAdr = packet.getAddress();
                 int clientPort = packet.getPort();
                 Packet tcpPacket = Packet.toPacket(new String(buff));
+                //wait for 2seconds then print packet then process
+                Thread t = timerThread(2);
+                t.start();
+                try{t.join();}catch(InterruptedException ie){}
+                System.out.println("RCVD: "+tcpPacket.toString());
 
                 if (state == State.NONE) { //Si la connexion est au début
                     if(tcpPacket.getSynFlag()){ //le paquet reçu doit etre un paquet SYN
@@ -86,19 +98,72 @@ public class Server {
                             System.out.println("Three way Handshake 3/3");
 
                             //On recupere les données qu'on veut envoyer
+                            Scanner in = new Scanner(new File(INPUT_DATA_FILE_NAME));
+                            while(in.hasNextLine()){
+                                INPUT_DATA += in.nextLine();
+                            }
+                            in.close();
+                            ++synNum;
+                            segment_initial = synNum;
+                            //On envoie les premier carctere
+                            Packet datum = new Packet();
+                            datum.setSynNum(synNum);
+                            int index = datum.getSynNum()- segment_initial;
+                            datum.setData(""+INPUT_DATA.charAt(index));
+                            Utility.sendPacket(serverSocket,clientAdr,clientPort, datum.toString());
 
-                            //On envoie
+                            nbrPaquet= Integer.parseInt(tcpPacket.getData().split(",")[0]);
+
                         }
                     }
                     else if (state == State.ESTABLISHED) {
                         windowSize = tcpPacket.getWindowSize();
-                        nbrPaquet = Integer.parseInt(tcpPacket.getData());
+                        if (tcpPacket.getAckFlag()) {
 
-                        //traitement envoi paquets
-                    }
-                    else if (state == State.FIN_SEND) {
-                        System.out.println("Fin de l'envoi");
-                    }
+                            if (windowSize == 0) {
+                                //ne pas envoyer attendre nouvelle vage
+
+                                continue;
+                            }
+
+                            synNum = tcpPacket.getAckNum();
+                            //send unACKd data after 4seconds
+                            t = timerThread(2);
+                            t.start();
+                            try {
+                                t.join();
+                            } catch (InterruptedException ie) {
+                            }
+                            Packet datum = new Packet();
+                                datum.setSynNum(synNum + 1);
+                                //int index = datum.getSynNum() - segment_initial;
+                                ++index ;
+                                nbrPaquet--;
+                                if ( nbrPaquet==0) {
+                                    //send disconnect;
+                                    System.out.println("Data sent!");
+                                    datum = new Packet();
+                                    datum.setFinFlag(true);
+                                    state = State.FIN_SEND;
+                                    System.out.println("Fourway handshake 1/4");
+                                    //break;
+                                } else {
+                                    try {
+                                        datum.setData("" + INPUT_DATA.charAt(index));
+                                    } catch (StringIndexOutOfBoundsException sioobe) {
+                                    }
+                                }
+
+                                Utility.sendPacket(serverSocket, clientAdr, clientPort, datum.toString());
+                        }
+                        //System.out.println("RCVD: " + tcpPacket.toString());
+
+
+
+                }
+                else if (state == State.FIN_SEND) {
+                    System.out.println("Fin de l'envoi");
+                }
 
 
             } catch (IOException e) {
@@ -108,4 +173,18 @@ public class Server {
         }
     }
 
+
+    private static Thread timerThread(final int seconds){
+        return new Thread(new Runnable(){
+            @Override
+            public void run(){
+                try{
+
+                    Thread.sleep(seconds*1000);
+                }catch(InterruptedException ie){
+
+                }
+            }
+        });
+    }
 }
