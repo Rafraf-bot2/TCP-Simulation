@@ -73,7 +73,7 @@ public class Client {
                 Thread t = timerThread(2);
                 t.start();
                 try{t.join();}catch(InterruptedException ie){}
-                System.out.println("RCVD: "+tcpPacket.toString());
+
                 if(state == State.SYN_SEND) { //le paquet doit etre un ACK+SYN
                     if(tcpPacket.getAckNum() == synNum + 1) { //la valeur de ACK doit etre SYN+1
                         System.out.println("** Paquet ACK+SYN reçu : ");
@@ -101,83 +101,71 @@ public class Client {
                         ackPacket.setWindowSize(windowSize);
                         System.out.println("\t** Valeur de WindowRCV => " + windowSize);
 
-                        data = "12,";
+                        data = "8,";
                         ackPacket.setData(data);
                         System.out.println("\t** Valeur de paquets total voulus  => " + data);
 
                         sendPacket(ackPacket.toString());
                         state = State.ESTABLISHED;
-
-                        System.out.println("Three way Handshake 3/3");
+                        System.out.println("Three way Handshake 3/3 \n");
+                        System.out.println("====================================== \n");
                         synNum =  segment_initial = ackNum;
                         synNum--;
                     }
                 }
                 else if (state == State.ESTABLISHED) {
-                    //System.out.println("eeee");
-                    //receive the data
-
                     Packet ack = new Packet();
-                    //System.out.println(tcpPacket.getSynNum());
-                    //System.out.println(synNum);
-                    if(tcpPacket.getSynNum() > synNum){
+
+                    if(tcpPacket.getSynNum() > synNum) { //si le numseq du paquet reçu est superieur au numsec du dernier paquet accepté
+                        Utility.displayPacket(tcpPacket, true);
                         buffer.add(tcpPacket);
+
                         ack.setAckFlag(true);
                         ack.setAckNum(tcpPacket.getSynNum()+1);
-                        ack.setWindowSize(windowSize-buffer.size());
-
-                        //System.out.println(" Valeur de WindowRCV  envoye=> " + ack.getWindowSize());
-                        System.out.println("accepté");
+                        ack.setWindowSize(windowSize- buffer.size());
                         sendPacket(ack.toString());
-
                     }
 
-                    if(buffer.size() == windowSize || tcpPacket.getFinFlag()){
-                        //process data collected
-                        char[] contents = new char[buffer.size()];
-                        int j=0;
-                        for(Packet pckt : buffer){
-                            if(pckt.getSynNum() <= synNum){
-                                continue; //packet duplicate
-                            }
-                            contents[j] = pckt.getData().charAt(0);
-                            j++;
+                    if(buffer.size() == windowSize || tcpPacket.getFinFlag()) {
+                        char[] contenu = new char[buffer.size()];
+                        for(Packet pkt : buffer) {
+                            if(pkt.getSynNum() <= synNum)
+                                continue;
+                            contenu[pkt.getSynNum() - synNum - 1] = pkt.getData().charAt(0);
                         }
 
-                        for(int i=0; i<buffer.size(); i++){
-                            if(contents[i]=='\0'){
+                        for (int i = 0; i < buffer.size(); i++) {
+                            if(contenu[i] == '\0')
                                 break;
-                            }else{
-                                DATA += ""+contents[i];
-                            }
+                            else
+                                DATA += "" + contenu[i];
                         }
-                        System.out.println("Current data: "+DATA);
-                        //clear data
+
+                        System.out.println("Donnée traitée : " + DATA);
+
                         buffer.clear();
-                        if(tcpPacket.getFinFlag()){
-                            System.out.println("Fourway handshake 1/4");
-                            //send fin+ack
-                            state = State.FIN_SEND;
+
+                        if(tcpPacket.getFinFlag()) {
+                            System.out.println("Fourway Handshake 1/4");
+                            state = State.FIN_RECV;
+
                             ack = new Packet();
                             ack.setFinFlag(true);
                             ack.setAckFlag(true);
-                           sendPacket(ack.toString());
+                            sendPacket(ack.toString());
                             System.out.println("Fourway handshake 2/4");
                             System.out.println("Fourway handshake 3/4");
-                        }else{
-                            //send new ack
+
+                        } else {
                             ack.setAckNum(segment_initial+DATA.length());
-                            ack.setWindowSize(windowSize-buffer.size());
-                            //System.out.println("\t** Valeur de WindowRCV  envoye new vage=> " + ack.getWindowSize());
+                            ack.setWindowSize(windowSize- buffer.size());
                             sendPacket(ack.toString());
                         }
                     }
-                    synNum = segment_initial + DATA.length()-1;
-
-
+                    synNum = segment_initial + DATA.length() - 1;
                 }
 
-            else if(state == State.FIN_SEND){
+            else if(state == State.FIN_RECV){
                 if(tcpPacket.getAckFlag() && tcpPacket.getAckNum()==0){
                     System.out.println("Fourway handshake 4/4");
                  break;
@@ -185,7 +173,7 @@ public class Client {
             }
 
             } catch (SocketTimeoutException e) {
-                System.out.println("Le serveur est injoignable : " + e);
+                System.out.println("Le serveur est injoignable : " + e.getMessage());
                 return;
             } catch (IOException e) {
                 e.printStackTrace();

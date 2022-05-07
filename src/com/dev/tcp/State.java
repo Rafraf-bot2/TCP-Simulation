@@ -10,6 +10,7 @@ public enum State {
     SYN_RECV,  //2 - le serveur à envoyé le SYN+ACK, il attend le ACK
     ESTABLISHED, //3 - Le 3way à réussi
     FIN_SEND, //4 - Le serveur à fini d'envoyer les données
+    FIN_RECV,
     FIN_ACK, //
-    DISCONNECTED //
+    DISCONNECTED, //
 }

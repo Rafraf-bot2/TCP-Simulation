@@ -40,10 +40,21 @@ public class Utility {
         DatagramPacket packet = new DatagramPacket(buff, buff.length, adr, port);
         try {
             socket.send(packet);
-            System.out.println("Paquet envoyé \n");
+            System.out.println("\tPaquet envoyé : "+ Packet.toPacket(msg));
         } catch (IOException e) {
             System.out.println("Erreur d'envoi du paquet");
             e.printStackTrace();
         }
+    }
+
+    public static void displayPacket(Packet pkt, boolean isAccepted) {
+        String accept = (isAccepted) ? "Paquet accepté : " : "Paquet reçu : ";
+        System.out.println( accept + "SYNF=" + ((pkt.getSynFlag()) ? "1" : "0")
+                +";SYNN="+pkt.getSynNum()
+                +";ACKF="+((pkt.getAckFlag()) ? "1" : "0")
+                +";ACKN="+pkt.getAckNum()
+                +";FINF="+((pkt.getFinFlag()) ? "1" : "0")
+                +";WINDOW="+pkt.getWindowSize()
+                +";DATA="+pkt.getData().substring(0,4));
     }
 }

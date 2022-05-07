@@ -7,6 +7,8 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 
 public class Server {
@@ -15,6 +17,7 @@ public class Server {
     private static final int MAX_BUFF_SIZE = 512;
     private static final String INPUT_DATA_FILE_NAME = "data.in";
     private static String INPUT_DATA = "";
+    private static List<Packet> buffer = new ArrayList<Packet>();
 
     private static State state = State.NONE;
     private static DatagramSocket serverSocket;
@@ -49,11 +52,11 @@ public class Server {
                 InetAddress clientAdr = packet.getAddress();
                 int clientPort = packet.getPort();
                 Packet tcpPacket = Packet.toPacket(new String(buff));
+
                 //wait for 2seconds then print packet then process
                 Thread t = timerThread(2);
                 t.start();
                 try{t.join();}catch(InterruptedException ie){}
-                System.out.println("RCVD: "+tcpPacket.toString());
 
                 if (state == State.NONE) { //Si la connexion est au début
                     if(tcpPacket.getSynFlag()){ //le paquet reçu doit etre un paquet SYN
@@ -89,22 +92,25 @@ public class Server {
                     }
                 }
                     else if (state == State.SYN_RECV) { //Etape 2 du 3way
-                        if(tcpPacket.getAckFlag() && tcpPacket.getAckNum() == synNum + 1) { //le paquet reçu doit etre un ACK et la valeur de ACK doit etre SYN+1
+                        if(tcpPacket.getAckFlag() && tcpPacket.getAckNum() == (++synNum)) { //le paquet reçu doit etre un ACK et la valeur de ACK doit etre SYN+1
                             System.out.println("** Paquet ACK reçu : ");
                             System.out.println("\t** Valeur  de ACK = " + tcpPacket.getAckNum());
                             System.out.println("\t** Valeur de SYN = " + tcpPacket.getSynNum() + "\n");
 
                             state = State.ESTABLISHED;
-                            System.out.println("Three way Handshake 3/3");
-
+                            System.out.println("Three way Handshake 3/3 \n");
+                            System.out.println("====================================== \n");
                             //On recupere les données qu'on veut envoyer
                             Scanner in = new Scanner(new File(INPUT_DATA_FILE_NAME));
                             while(in.hasNextLine()){
                                 INPUT_DATA += in.nextLine();
                             }
                             in.close();
-                            ++synNum;
+                            nbrPaquet = Integer.parseInt(tcpPacket.getData().split(",")[0]);
+                            INPUT_DATA = INPUT_DATA.substring(0,nbrPaquet);
+
                             segment_initial = synNum;
+
                             //On envoie les premier carctere
                             Packet datum = new Packet();
                             datum.setSynNum(synNum);
@@ -112,54 +118,37 @@ public class Server {
                             datum.setData(""+INPUT_DATA.charAt(index));
                             Utility.sendPacket(serverSocket,clientAdr,clientPort, datum.toString());
 
-                            nbrPaquet= Integer.parseInt(tcpPacket.getData().split(",")[0]);
-
                         }
                     }
                     else if (state == State.ESTABLISHED) {
+                    Utility.displayPacket(tcpPacket, false);
                         windowSize = tcpPacket.getWindowSize();
-                        if (tcpPacket.getAckFlag()) {
-
-                            if (windowSize == 0) {
-                                //ne pas envoyer attendre nouvelle vage
-
+                        if(tcpPacket.getAckFlag()) {
+                            if (windowSize == 0) //Si le buffer du client est full
                                 continue;
-                            }
 
                             synNum = tcpPacket.getAckNum();
-                            //send unACKd data after 4seconds
-                            t = timerThread(2);
-                            t.start();
-                            try {
-                                t.join();
-                            } catch (InterruptedException ie) {
-                            }
-                            Packet datum = new Packet();
-                                datum.setSynNum(synNum + 1);
-                                //int index = datum.getSynNum() - segment_initial;
-                                ++index ;
-                                nbrPaquet--;
-                                if ( nbrPaquet==0) {
-                                    //send disconnect;
-                                    System.out.println("Data sent!");
-                                    datum = new Packet();
-                                    datum.setFinFlag(true);
+
+                            for (int i = 0; i < windowSize; i++) {
+                                Packet dataPacket = new Packet();
+                                dataPacket.setSynNum(synNum + i);
+
+                                int index = dataPacket.getSynNum() - segment_initial;
+
+                                if (index == INPUT_DATA.length()) { //Si on a envoyé toutes les paquets
+                                    System.out.println("Les paquets sont envoyés");
+                                    dataPacket = new Packet();
+                                    dataPacket.setFinFlag(true);
                                     state = State.FIN_SEND;
-                                    System.out.println("Fourway handshake 1/4");
-                                    //break;
-                                } else {
+                                    System.out.println("Four way handshake 1/4");
+                                } else { // sinon
                                     try {
-                                        datum.setData("" + INPUT_DATA.charAt(index));
-                                    } catch (StringIndexOutOfBoundsException sioobe) {
-                                    }
+                                        dataPacket.setData("" + INPUT_DATA.charAt(index));
+                                    } catch (StringIndexOutOfBoundsException ignore) {}
                                 }
-
-                                Utility.sendPacket(serverSocket, clientAdr, clientPort, datum.toString());
+                                Utility.sendPacket(serverSocket, clientAdr, clientPort, dataPacket.toString());
+                            }
                         }
-                        //System.out.println("RCVD: " + tcpPacket.toString());
-
-
-
                 }
                 else if (state == State.FIN_SEND) {
                     System.out.println("Fin de l'envoi");
