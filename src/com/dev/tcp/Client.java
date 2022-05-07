@@ -168,7 +168,13 @@ public class Client {
             else if(state == State.FIN_RECV){
                 if(tcpPacket.getAckFlag() && tcpPacket.getAckNum()==0){
                     System.out.println("Fourway handshake 4/4");
-                 break;
+                    System.out.println("Transmission terminée, shutting down...");
+                    t = timerThread(30);
+                    t.start();
+                    try {
+                        t.join();
+                    } catch (InterruptedException ignored) {}
+                    return;
                 }
             }
 

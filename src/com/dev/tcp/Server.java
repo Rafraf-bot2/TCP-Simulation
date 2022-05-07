@@ -151,7 +151,26 @@ public class Server {
                         }
                 }
                 else if (state == State.FIN_SEND) {
-                    System.out.println("Fin de l'envoi");
+                    if(tcpPacket.getFinFlag() && tcpPacket.getAckNum() == 0) {
+                        System.out.println("Fourway handshake 2/4");
+                        System.out.println("Fourway handshake 3/4");
+                        state = State.FIN_ACK;
+
+                        Packet finAck = new Packet();
+                        finAck.setAckFlag(true);
+                        Utility.sendPacket(serverSocket, clientAdr, clientPort, finAck.toString());
+                        System.out.println("Fourway handshake 4/4");
+                        break;
+                    }
+                }
+                else if (state == State.FIN_ACK) {
+                    System.out.println("Transmission terminée, shutting down...");
+                     t = timerThread(10);
+                    t.start();
+                    try {
+                        t.join();
+                    } catch (InterruptedException ignored) {}
+                    return;
                 }
 
 
